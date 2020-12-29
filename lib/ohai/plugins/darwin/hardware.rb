@@ -23,8 +23,13 @@ Ohai.plugin(:Hardware) do
   def system_profiler(datatype)
     sp_cmd = "system_profiler #{datatype} -xml"
     # Hardware queries
-    sp_std = shell_out(sp_cmd)
-    Plist.parse_xml(sp_std.stdout)
+    begin
+      sp_std = shell_out(sp_cmd)
+    rescue Ohai::Exceptions::Exec => e
+      logger.error("Plugin Hardware: system_profiler #{datatype} query timeout: #{e.to_s}")
+      return nil
+    end
+    return Plist.parse_xml(sp_std.stdout)
   end
 
   collect_data(:darwin) do
@@ -38,8 +43,10 @@ Ohai.plugin(:Hardware) do
     require "plist"
 
     hw_hash = system_profiler("SPHardwareDataType")
-    hw_hash[0]["_items"][0].delete("_name")
-    hardware.merge!(hw_hash[0]["_items"][0])
+    if hw_hash
+      hw_hash[0]["_items"][0].delete("_name")
+      hardware.merge!(hw_hash[0]["_items"][0])
+    end
 
     # ProductName:	Mac OS X
     # ProductVersion:	10.15.6
@@ -60,7 +67,7 @@ Ohai.plugin(:Hardware) do
     # Storage queries
     storage = []
     storage_hash = system_profiler("SPStorageDataType")
-    drives = storage_hash[0]["_items"]
+    drives = storage_hash ? storage_hash[0]["_items"] : []
     drives.each do |drive_entry|
       drive = Mash.new
       drive[:name] = drive_entry["_name"]
@@ -78,7 +85,7 @@ Ohai.plugin(:Hardware) do
 
     # Battery queries
     battery_hash = system_profiler("SPPowerDataType")
-    power_entries = battery_hash[0]["_items"]
+    power_entries = battery_hash ? battery_hash[0]["_items"] : []
     battery = Mash.new
     power_entries.each do |entry|
       if entry.value?("spbattery_information")
