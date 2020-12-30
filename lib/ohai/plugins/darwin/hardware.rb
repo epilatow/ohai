@@ -27,6 +27,12 @@ Ohai.plugin(:Hardware) do
     Plist.parse_xml(sp_std.stdout)
   end
 
+  def get_ioreg
+    ioreg_cmd = 'ioreg -k IOPlatformSerialNumber -d 2 -a'
+    ioreg_std = shell_out(ioreg_cmd)
+    Plist.parse_xml(ioreg_std.stdout)['IORegistryEntryChildren'][0]
+  end
+
   collect_data(:darwin) do
     unless hardware
       hardware Mash.new
@@ -95,5 +101,10 @@ Ohai.plugin(:Hardware) do
       end
     end
     hardware[:battery] = battery
+
+    # Set properties required by the ohai ShardSeed plugin.
+    ioreg_plist = get_ioreg
+    hardware['serial_number'] = ioreg_plist['IOPlatformSerialNumber']
+    hardware['platform_UUID'] = ioreg_plist['IOPlatformUUID']
   end
 end
